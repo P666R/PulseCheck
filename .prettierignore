@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+dist/
+.next/
+.turbo/
+out/
+build/
+
+# Package Managers
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Assets & Media
+public/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+
+# Configs & Logs
+.env*
+*.log
+.eslintcache
+*.tsbuildinfo
+
+# Folders to skip
+.husky/
+.vscode/
+.github/
+**/generated/prisma
+**/next-env.d.ts

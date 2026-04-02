@@ -36,3 +36,14 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+.eslintcache
+*.cache
+
+# TypeScript
+*.tsbuildinfo
+
+# Tooling
+.husky/_/
+
+# Prisma
+**/generated/prisma
