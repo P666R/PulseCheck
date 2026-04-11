@@ -19,16 +19,58 @@ enum UserRole {
 }
 
 model User {
-  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id       String   @id @default(uuid()) @db.Uuid
   email    String   @unique
   name     String   @db.VarChar(60)
   password String
   address  String   @db.VarChar(400)
   role     UserRole @default(NORMAL_USER)
 
+  refreshTokens     String[]  @default([]) @map("refresh_tokens")
+  passwordChangedAt DateTime? @map("password_changed_at")
+
+  ownedStores Store[]  @relation("OwnerToStore")
+  ratings     Rating[]
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@index([name, email, address, role])
+  @@index([name])
+  @@index([email])
   @@map("users")
+}
+
+model Store {
+  id      String @id @default(uuid()) @db.Uuid
+  name    String @db.VarChar(60)
+  email   String @unique
+  address String @db.VarChar(400)
+
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation("OwnerToStore", fields: [ownerId], references: [id])
+
+  ratings Rating[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([name, address])
+  @@map("stores")
+}
+
+model Rating {
+  id     String @id @default(uuid()) @db.Uuid
+  rating Int    @db.SmallInt
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  storeId String @map("store_id") @db.Uuid
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, storeId])
+  @@map("ratings")
 }
