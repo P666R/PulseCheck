@@ -42,6 +42,10 @@ yarn-error.log*
 # TypeScript
 *.tsbuildinfo
 
+# Logs
+logs
+*.log
+
 # Tooling
 .husky/_/
 

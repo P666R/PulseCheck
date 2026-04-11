@@ -3,16 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "turbo run build",
-    "check-types": "turbo run check-types",
-    "commit": "czg",
     "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
     "dev:api": "turbo run dev --filter=server",
     "dev:web": "turbo run dev --filter=client",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css}\"",
     "lint": "turbo run lint",
-    "prepare": "husky",
-    "start": "turbo run start"
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml,css}\"",
+    "check-types": "turbo run check-types",
+    "commit": "czg",
+    "prepare": "husky"
   },
   "lint-staged": {
     "**/*.{js,jsx,ts,tsx}": "eslint --fix",
