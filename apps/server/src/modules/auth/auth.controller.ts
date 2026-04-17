@@ -1,4 +1,4 @@
-import type { CookieOptions, Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { StatusCodes } from 'http-status-codes';
 
@@ -7,14 +7,15 @@ import type {
   RegisterInput,
   UpdatePasswordInput,
 } from '#src/modules/auth/auth.schema.js';
+import type { AuthenticatedRequest } from '#src/modules/auth/auth.type.js';
 
 import { enrichRequestLogger } from '#src/app/middlewares/logging.middleware.js';
 import { AuthService } from '#src/modules/auth/auth.service.js';
+import { BaseController } from '#src/modules/core/base.controller.js';
 
-import type { AuthenticatedRequest } from './auth.type.js';
-
-export class AuthController {
+export class AuthController extends BaseController {
   constructor(private readonly authService: AuthService) {
+    super();
     this.register = this.register.bind(this);
     this.login = this.login.bind(this);
     this.logout = this.logout.bind(this);
@@ -22,32 +23,18 @@ export class AuthController {
     this.updatePassword = this.updatePassword.bind(this);
   }
 
-  private getCookieOptions(maxAge: number): CookieOptions {
-    return {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-      maxAge: maxAge || undefined,
-    };
-  }
-
   public async register(req: Request, res: Response) {
-    const { name, email, address, password } = req.body as RegisterInput;
+    const { passwordConfirm: _, ...body } = req.body as RegisterInput;
 
-    const user = await this.authService.register({
-      name,
-      email,
-      address,
-      password,
-    });
+    const user = await this.authService.register(body);
 
     enrichRequestLogger(req, { userId: user.id, role: user.role });
     req.log.info('User registration successful');
 
-    res.status(StatusCodes.CREATED).json({
-      success: true,
+    return this.sendSuccessResponse(req, res, {
       message: 'Registered successfully',
+      data: user,
+      status: StatusCodes.CREATED,
     });
   }
 
@@ -69,13 +56,9 @@ export class AuthController {
 
       res.cookie('jwt', refreshToken, cookieOptions);
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        data: {
-          name: user.name,
-          email: user.email,
-          address: user.address,
-        },
+      return this.sendSuccessResponse(req, res, {
+        message: 'Logged in successfully',
+        data: user,
         accessToken,
       });
     } catch (error) {
@@ -93,28 +76,24 @@ export class AuthController {
     res.clearCookie('jwt', cookieOptions);
 
     if (!currentCookieToken) {
-      res.status(StatusCodes.OK).json({
-        success: true,
+      return this.sendSuccessResponse(req, res, {
         message: 'Already logged out',
       });
-      return;
     }
 
     const user = await this.authService.logout(currentCookieToken);
 
     if (!user) {
-      res.status(StatusCodes.OK).json({
-        success: true,
+      return this.sendSuccessResponse(req, res, {
         message: 'Already logged out',
       });
-      return;
     }
 
     req.log.info('User logged out successfully');
 
-    res.status(StatusCodes.OK).json({
-      success: true,
+    return this.sendSuccessResponse(req, res, {
       message: 'Logged out successfully',
+      data: user,
     });
   }
 
@@ -134,13 +113,9 @@ export class AuthController {
 
       res.cookie('jwt', newRefreshToken, cookieOptions);
 
-      res.status(StatusCodes.OK).json({
-        success: true,
-        data: {
-          name: user.name,
-          email: user.email,
-          address: user.address,
-        },
+      return this.sendSuccessResponse(req, res, {
+        message: 'Tokens rotated successfully',
+        data: user,
         accessToken,
       });
     } catch (error) {
@@ -154,16 +129,16 @@ export class AuthController {
     const { user } = req as AuthenticatedRequest;
     const { password } = req.body as UpdatePasswordInput;
 
-    await this.authService.updatePassword({
+    const updatedUser = await this.authService.updatePassword({
       userId: user.id,
       password,
     });
 
     req.log.info('Password reset successful');
 
-    res.status(StatusCodes.OK).json({
-      success: true,
+    return this.sendSuccessResponse(req, res, {
       message: 'Password updated successfully',
+      data: updatedUser,
     });
   }
 }
