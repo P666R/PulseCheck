@@ -1,6 +1,14 @@
-import type { CleanupError, Lifecycle } from '#src/types/lifecycle.type.js';
+import type {
+  CleanupError,
+  HealthCheckResult,
+  Lifecycle,
+} from '#src/types/lifecycle.type.js';
 
-import { APP_SHUTDOWN_TIMEOUT_MS, EXIT_CODES } from '#src/config/constants.js';
+import {
+  APP_SHUTDOWN_TIMEOUT_MS,
+  EXIT_CODES,
+  HEALTH_STATUS,
+} from '#src/config/constants.js';
 import { AppError } from '#src/lib/api/app-error.api.js';
 import { logger } from '#src/lib/logger/pino.logger.js';
 import { db } from '#src/lib/prisma/client.prisma.js';
@@ -19,16 +27,13 @@ import { Server } from '#src/server.js';
  * - Components implement Lifecycle interface
  * - Error handling distinguishes operational vs programmer errors
  */
-class PulseCheckApp {
+class PulseCheck {
   // Infrastructure components (ordered by startup dependency)
   private readonly components = new Map<string, Lifecycle>();
-
   private isShuttingDown = false;
   private readonly logger = logger.createChild({
     service: 'Application',
   });
-
-  private server?: Server;
 
   public async run(): Promise<void> {
     try {
@@ -38,10 +43,55 @@ class PulseCheckApp {
       await this.startup();
 
       this.logger.info('Application: Startup completed');
+      applicationHealthGetter = () => this.health();
     } catch (error) {
       this.logError(error, 'Startup');
       await this.shutdown('STARTUP_FAILURE', EXIT_CODES.STARTUP_FAILURE);
     }
+  }
+
+  public health(): HealthCheckResult {
+    const componentHealths: HealthCheckResult[] = [];
+
+    for (const [name, component] of this.components) {
+      try {
+        if (typeof component.health === 'function') {
+          componentHealths.push(component.health());
+        }
+      } catch {
+        componentHealths.push({
+          component: name,
+          status: HEALTH_STATUS.UNHEALTHY,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    const hasUnhealthy = componentHealths.some(
+      (h) => h.status === HEALTH_STATUS.UNHEALTHY,
+    );
+    const hasDegraded = componentHealths.some(
+      (h) => h.status === HEALTH_STATUS.DEGRADED,
+    );
+
+    const degradedStatus = hasDegraded
+      ? HEALTH_STATUS.DEGRADED
+      : HEALTH_STATUS.HEALTHY;
+
+    const overallStatus = hasUnhealthy
+      ? HEALTH_STATUS.UNHEALTHY
+      : degradedStatus;
+
+    return {
+      component: 'pulsecheck',
+      status: overallStatus,
+      details: {
+        isShuttingDown: this.isShuttingDown,
+        uptimeMs: Math.trunc(process.uptime() * 1000),
+      },
+      timestamp: new Date().toISOString(),
+      components: componentHealths,
+    };
   }
 
   /**
@@ -212,11 +262,27 @@ class PulseCheckApp {
     this.components.set('database', db);
 
     this.logger.debug('Application: Starting HTTP server');
-    this.server = new Server();
-    await this.server.start();
-    this.components.set('server', this.server);
+    const server = new Server();
+    await server.start();
+    this.components.set('server', server);
+    if (server.appInstance) {
+      this.components.set('express', server.appInstance);
+    }
   }
 }
 
+let applicationHealthGetter: (() => HealthCheckResult) | null = null;
+
+export const getApplicationHealth = (): HealthCheckResult => {
+  if (!applicationHealthGetter) {
+    return {
+      component: 'pulsecheck',
+      status: HEALTH_STATUS.UNHEALTHY,
+      timestamp: new Date().toISOString(),
+    };
+  }
+  return applicationHealthGetter();
+};
+
 // Start the application
-await new PulseCheckApp().run();
+await new PulseCheck().run();
