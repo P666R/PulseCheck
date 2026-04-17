@@ -232,16 +232,13 @@ export class App implements Lifecycle {
     }
 
     // Production: parse allowed origins from environment
-    const allowedOrigins =
-      envConfig.CORS_ALLOWED_ORIGINS === ''
-        ? []
-        : envConfig.CORS_ALLOWED_ORIGINS.split(',');
+    const allowedOrigins = envConfig.CORS_ALLOWED_ORIGINS.split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0);
 
     if (allowedOrigins.length === 0) {
-      this.logger.warn(
-        'Express: No CORS origins configured for production, allowing all',
-      );
-      return true;
+      this.logger.warn('Express: No CORS origins configured for production');
+      return [];
     }
 
     this.logger.debug(
@@ -273,43 +270,48 @@ export class App implements Lifecycle {
     }
   }
 
+  private createAuthRoutes(
+    authRepository: AuthRepository,
+    authMiddleware: AuthMiddleware,
+  ) {
+    const authService = new AuthService(authRepository);
+    const authController = new AuthController(authService);
+    return new AuthRouter(authController, authMiddleware).mountRoutes();
+  }
+
   private mountAuthRoutes(
     authRepository: AuthRepository,
     authMiddleware: AuthMiddleware,
   ): void {
-    try {
-      const authService = new AuthService(authRepository);
-      const authController = new AuthController(authService);
-      const authRouter = new AuthRouter(authController, authMiddleware);
-
-      this.app.use('/api/v1/auth', authRouter.mountRoutes());
-
-      this.logger.debug('Express: Auth routes mounted successfully');
-    } catch (error) {
-      this.logger.error({ err: error }, 'Express: Failed to mount user routes');
-      throw new InternalServerError(
-        'Failed to mount auth routes',
-        { module: 'auth' },
-        { cause: error },
+    this.safelyExecute(() => {
+      this.app.use(
+        '/api/v1/auth',
+        this.createAuthRoutes(authRepository, authMiddleware),
       );
-    }
+    }, 'Auth route mounting');
+  }
+
+  private createUserRoutes(authMiddleware: AuthMiddleware) {
+    const userRepository = new UserRepository();
+    const userService = new UserService(userRepository);
+    const userController = new UserController(userService);
+    return new UserRouter(userController, authMiddleware).mountRoutes();
   }
 
   private mountUserRoutes(authMiddleware: AuthMiddleware): void {
+    this.safelyExecute(() => {
+      this.app.use('/api/v1/users', this.createUserRoutes(authMiddleware));
+    }, 'User route mounting');
+  }
+
+  private safelyExecute<T>(operation: () => T, context: string): T {
     try {
-      const userRepository = new UserRepository();
-      const userService = new UserService(userRepository);
-      const userController = new UserController(userService);
-      const userRouter = new UserRouter(userController, authMiddleware);
-
-      this.app.use('/api/v1/users', userRouter.mountRoutes());
-
-      this.logger.debug('Express: User routes mounted successfully');
+      return operation();
     } catch (error) {
-      this.logger.error({ err: error }, 'Express: Failed to mount user routes');
+      this.logger.error({ err: error }, `Express: ${context} failed`);
       throw new InternalServerError(
-        'Failed to mount user routes',
-        { module: 'users' },
+        `${context} failed`,
+        { module: context.toLowerCase() },
         { cause: error },
       );
     }
