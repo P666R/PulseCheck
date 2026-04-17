@@ -30,11 +30,9 @@ export class AuthRouter {
 
     this.authRouter.route('/refresh').post(this.authController.newAccessToken);
 
-    this.authRouter.use(
-      this.authMiddleware.checkAuth.bind(this.authMiddleware),
-    );
-
     this.authRouter.route('/logout').post(this.authController.logout);
+
+    this.authRouter.use(this.authMiddleware.checkAuth);
 
     this.authRouter
       .route('/password')
