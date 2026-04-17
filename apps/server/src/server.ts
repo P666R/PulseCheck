@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net';
 import http from 'node:http';
 import os from 'node:os';
 
+import type { App } from '#src/app/app.js';
 import type {
   HealthCheckResult,
   Lifecycle,
@@ -36,6 +37,7 @@ import { logger } from '#src/lib/logger/pino.logger.js';
 export class Server implements Lifecycle {
   private _isRunning = false;
   private _isShuttingDown = false;
+  appInstance?: App;
   private app?: Express;
   private readonly logger = logger.createChild({ service: 'Server' });
   private readonly NODE_ENV = envConfig.NODE_ENV;
@@ -46,25 +48,27 @@ export class Server implements Lifecycle {
    * Get the health status of the server.
    */
   public health(): HealthCheckResult {
-    const result: HealthCheckResult = {
+    const addressInfo = this.server?.address();
+    const isPortBound = addressInfo !== null && addressInfo !== undefined;
+
+    const appHealth = this.appInstance?.health();
+
+    let status: HEALTH_STATUS = HEALTH_STATUS.HEALTHY;
+    if (this._isShuttingDown) status = HEALTH_STATUS.SHUTTING_DOWN;
+    else if (!this._isRunning || !isPortBound) status = HEALTH_STATUS.UNHEALTHY;
+    else if (appHealth && appHealth.status !== HEALTH_STATUS.HEALTHY) {
+      status = appHealth.status;
+    }
+
+    return {
       component: 'server',
-      status: HEALTH_STATUS.HEALTHY,
+      status,
+      details: {
+        ...(addressInfo as AddressInfo),
+        isPortBound,
+      },
       timestamp: new Date().toISOString(),
     };
-
-    if (this._isShuttingDown) {
-      result.status = HEALTH_STATUS.SHUTTING_DOWN;
-    } else if (!this._isRunning) {
-      result.status = HEALTH_STATUS.UNHEALTHY;
-    }
-
-    if (this.server) {
-      result.details = {
-        address: this.server.address(),
-      };
-    }
-
-    return result;
   }
 
   /**
@@ -88,7 +92,8 @@ export class Server implements Lifecycle {
       this.logger.debug('Server: Initializing HTTP server');
 
       // Initialize Express application
-      this.app = await createApp();
+      this.appInstance = await createApp();
+      this.app = this.appInstance.getApp();
 
       // Start HTTP server
       await this.listen();
@@ -128,6 +133,10 @@ export class Server implements Lifecycle {
     this.logger.info('Server: Initiating graceful shutdown');
 
     try {
+      if (this.appInstance) {
+        await this.appInstance.stop();
+      }
+
       // Phase 1: Stop accepting new connections, drain existing
       await this.drainConnections();
 
@@ -135,8 +144,9 @@ export class Server implements Lifecycle {
       await this.closeServer();
 
       this._isRunning = false;
-      delete this.server;
-      delete this.app;
+      this.server = undefined;
+      this.app = undefined;
+      this.appInstance = undefined;
 
       this.logger.info('Server: HTTP server stopped');
     } catch (error) {
