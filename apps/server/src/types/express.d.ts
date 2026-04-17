@@ -1,4 +1,4 @@
-import { User, UserRole } from '@repo/db';
+import type { User, UserRole } from '@repo/db';
 
 declare global {
   namespace Express {

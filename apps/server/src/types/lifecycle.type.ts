@@ -28,6 +28,7 @@ export interface HealthCheckResult {
   details?: Record<string, unknown>;
   status: (typeof HEALTH_STATUS)[keyof typeof HEALTH_STATUS];
   timestamp: string;
+  components?: HealthCheckResult[];
 }
 
 /**
