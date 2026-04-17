@@ -26,7 +26,7 @@ export class AuthMiddleware {
 
   constructor(private readonly authRepository: AuthRepository) {}
 
-  async checkAuth(req: Request, _res: Response, next: NextFunction) {
+  checkAuth = async (req: Request, _res: Response, next: NextFunction) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
@@ -89,7 +89,7 @@ export class AuthMiddleware {
 
       throw new UnauthorizedError('Authentication failed');
     }
-  }
+  };
 
   checkRole = (allowedRoles: UserRole[]) => {
     return (req: Request, _res: Response, next: NextFunction) => {
