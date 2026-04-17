@@ -29,3 +29,29 @@ export const HEALTH_STATUS = {
   SHUTTING_DOWN: 'shutting_down',
   UNHEALTHY: 'unhealthy',
 } as const;
+
+export type HEALTH_STATUS = (typeof HEALTH_STATUS)[keyof typeof HEALTH_STATUS];
+
+export const STATUS = {
+  SUCCESS: 'success', // 2xx	Everything worked.
+  FAIL: 'fail', // 4xx	Bad request, Unauthorized, Validation Error, Not Found.
+  ERROR: 'error', // 5xx	Database timeout, Server crash, Out of memory.
+} as const;
+
+export type STATUS = (typeof STATUS)[keyof typeof STATUS];
+
+export const UserSortableField = {
+  NAME: 'name',
+  EMAIL: 'email',
+  CREATED_AT: 'createdAt',
+} as const;
+
+export const UserSortOrder = {
+  ASC: 'asc',
+  DESC: 'desc',
+} as const;
+
+export type UserSortableField =
+  (typeof UserSortableField)[keyof typeof UserSortableField];
+
+export type UserSortOrder = (typeof UserSortOrder)[keyof typeof UserSortOrder];

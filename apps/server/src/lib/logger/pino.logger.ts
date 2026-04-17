@@ -9,6 +9,7 @@ import { ZodError } from 'zod';
 import type { SerializedError } from '#src/app/middlewares/error.middleware.js';
 
 import { formatZodError } from '#src/app/middlewares/error.middleware.js';
+import { STATUS } from '#src/config/constants.js';
 import { envConfig, type EnvConfig } from '#src/config/env.config.js';
 import { loggerStore } from '#src/lib/utils/context-provider.util.js';
 
@@ -22,7 +23,7 @@ interface InternalAppError extends Error {
   isOperational?: boolean;
   details?: Record<string, unknown>;
   timestamp?: string;
-  status?: string;
+  status?: STATUS;
   cause?: unknown;
 }
 

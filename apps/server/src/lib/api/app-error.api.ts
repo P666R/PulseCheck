@@ -1,10 +1,12 @@
 export type AppErrorDetails = Record<string, unknown>;
 
+import { STATUS } from '#src/config/constants.js';
+
 export class AppError extends Error {
   public readonly details?: AppErrorDetails;
   public readonly errorCode: string;
   public readonly isOperational: boolean;
-  public readonly status: string;
+  public readonly status: STATUS;
   public readonly statusCode: number;
   public readonly timestamp: string;
 
@@ -20,7 +22,8 @@ export class AppError extends Error {
 
     this.name = this.constructor.name;
     this.statusCode = statusCode;
-    this.status = statusCode >= 400 && statusCode < 500 ? 'fail' : 'error';
+    this.status =
+      statusCode >= 400 && statusCode < 500 ? STATUS.FAIL : STATUS.ERROR;
     this.isOperational = true;
     this.errorCode = errorCode ?? this.name;
     this.details = details;

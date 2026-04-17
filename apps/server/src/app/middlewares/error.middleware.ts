@@ -4,6 +4,7 @@ import type { ReqId } from 'pino-http';
 import { StatusCodes } from 'http-status-codes';
 import { ZodError } from 'zod';
 
+import { STATUS } from '#src/config/constants.js';
 import { envConfig } from '#src/config/env.config.js';
 import { AppError, type AppErrorDetails } from '#src/lib/api/app-error.api.js';
 import { NotFoundError } from '#src/lib/api/client-error.api.js';
@@ -13,7 +14,7 @@ interface ErrorResponse {
   correlationId?: string;
   errorCode: string;
   message: string;
-  status: string;
+  status: STATUS;
   timestamp: string;
   details?: AppErrorDetails | null;
   stack?: string;
@@ -24,7 +25,7 @@ interface ExtractedErrorInfo {
   name: string;
   message: string;
   statusCode: number;
-  status: string;
+  status: STATUS;
   errorCode: string;
   isOperational: boolean;
   details: AppErrorDetails | null;
@@ -39,7 +40,7 @@ export interface SerializedError {
   stack?: string;
   errorCode?: string;
   statusCode?: number;
-  status?: string;
+  status?: STATUS;
   details?: AppErrorDetails;
   timestamp?: string;
   isOperational?: boolean;
@@ -109,7 +110,7 @@ const extractErrorInfo = (err: unknown): ExtractedErrorInfo => {
       name: 'ValidationError',
       message: summary,
       statusCode: StatusCodes.UNPROCESSABLE_ENTITY,
-      status: 'warn',
+      status: STATUS.FAIL,
       errorCode: 'VALIDATION_ERROR',
       isOperational: true,
       details,
@@ -139,7 +140,7 @@ const extractErrorInfo = (err: unknown): ExtractedErrorInfo => {
       name: err.name,
       message: err.message || 'An unexpected error occurred',
       statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
-      status: 'error',
+      status: STATUS.ERROR,
       errorCode: 'INTERNAL_SERVER_ERROR',
       isOperational: false,
       details: null,
@@ -153,7 +154,7 @@ const extractErrorInfo = (err: unknown): ExtractedErrorInfo => {
     name: 'UnknownError',
     message: 'An unidentifiable error occurred',
     statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
-    status: 'error',
+    status: STATUS.ERROR,
     errorCode: 'UNKNOWN_ERROR',
     isOperational: false,
     details: { raw: err } as AppErrorDetails,
