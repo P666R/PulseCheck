@@ -1,4 +1,4 @@
-import type { Express, NextFunction, Request, Response } from 'express';
+import type { Express, Request, Response } from 'express';
 
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
@@ -11,6 +11,7 @@ import type {
   Lifecycle,
 } from '#src/types/lifecycle.type.js';
 
+import { AuthMiddleware } from '#src/app/middlewares/check-auth.middleware.js';
 import {
   errorHandlerMiddleware,
   notFoundHandlerMiddleware,
@@ -24,10 +25,13 @@ import { AuthController } from '#src/modules/auth/auth.controller.js';
 import { AuthRepository } from '#src/modules/auth/auth.repository.js';
 import { AuthRouter } from '#src/modules/auth/auth.route.js';
 import { AuthService } from '#src/modules/auth/auth.service.js';
+import { HealthRoute } from '#src/modules/health/health.route.js';
+import { UserController } from '#src/modules/users/users.controller.js';
+import { UserRepository } from '#src/modules/users/users.repository.js';
+import { UserRouter } from '#src/modules/users/users.route.js';
+import { UserService } from '#src/modules/users/users.service.js';
 
-import { AuthMiddleware } from './middlewares/check-auth.middleware.js';
-
-export class Application implements Lifecycle {
+export class App implements Lifecycle {
   private readonly app: Express;
   private isConfigured = false;
   private isInitialized = false;
@@ -52,13 +56,13 @@ export class Application implements Lifecycle {
   public health(): HealthCheckResult {
     return {
       component: 'express',
+      status: this.isInitialized
+        ? HEALTH_STATUS.HEALTHY
+        : HEALTH_STATUS.UNHEALTHY,
       details: {
         configured: this.isConfigured,
         initialized: this.isInitialized,
       },
-      status: this.isInitialized
-        ? HEALTH_STATUS.HEALTHY
-        : HEALTH_STATUS.UNHEALTHY,
       timestamp: new Date().toISOString(),
     };
   }
@@ -155,12 +159,8 @@ export class Application implements Lifecycle {
   }
 
   private configureHealthCheck(): void {
-    this.app.get('/health', (_req: Request, res: Response) => {
-      res.status(200).json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-      });
-    });
+    const healthRoute = new HealthRoute();
+    this.app.use('/health', healthRoute.router);
   }
 
   private configureLogging(): void {
@@ -177,15 +177,6 @@ export class Application implements Lifecycle {
     this.app.use(compression());
 
     // Request timeout protection
-    this.app.use((req: Request, _res: Response, next: NextFunction) => {
-      req.setTimeout(30_000, () => {
-        this.logger.warn(
-          { method: req.method, url: req.url },
-          'Express: Request timeout',
-        );
-      });
-      next();
-    });
   }
 
   private configureRoutes(): void {
@@ -198,8 +189,12 @@ export class Application implements Lifecycle {
       });
     });
 
-    // User routes with dependency injection
-    this.mountUserRoutes();
+    const { authRepository, authMiddleware } =
+      this.initializeSharedDependencies();
+
+    this.mountAuthRoutes(authRepository, authMiddleware);
+    this.mountUserRoutes(authMiddleware);
+
     this.logger.debug('Express: Routes configured');
   }
 
@@ -257,27 +252,59 @@ export class Application implements Lifecycle {
     return allowedOrigins;
   }
 
-  /**
-   * Mount user routes with dependency injection.
-   *
-   * Pattern: Repository → Service → Controller → Route
-   * - Repository: Data access layer
-   * - Service: Business logic layer
-   * - Controller: Request handling layer
-   * - Route: Route definition layer
-   */
-  private mountUserRoutes(): void {
+  private initializeSharedDependencies() {
     try {
-      // Dependency injection chain
       const authRepository = new AuthRepository();
+      const authMiddleware = new AuthMiddleware(authRepository);
+
+      this.logger.debug('Express: Shared dependencies initialized');
+
+      return { authRepository, authMiddleware };
+    } catch (error) {
+      this.logger.error(
+        { err: error },
+        'Express: Failed to initialize shared dependencies',
+      );
+      throw new InternalServerError(
+        'Failed to initialize shared dependencies',
+        { module: 'shared' },
+        { cause: error },
+      );
+    }
+  }
+
+  private mountAuthRoutes(
+    authRepository: AuthRepository,
+    authMiddleware: AuthMiddleware,
+  ): void {
+    try {
       const authService = new AuthService(authRepository);
       const authController = new AuthController(authService);
-      const authMiddleware = new AuthMiddleware(authRepository);
       const authRouter = new AuthRouter(authController, authMiddleware);
 
-      // Mount routes
       this.app.use('/api/v1/auth', authRouter.mountRoutes());
-      this.logger.info('Express: Auth routes mounted successfully');
+
+      this.logger.debug('Express: Auth routes mounted successfully');
+    } catch (error) {
+      this.logger.error({ err: error }, 'Express: Failed to mount user routes');
+      throw new InternalServerError(
+        'Failed to mount auth routes',
+        { module: 'auth' },
+        { cause: error },
+      );
+    }
+  }
+
+  private mountUserRoutes(authMiddleware: AuthMiddleware): void {
+    try {
+      const userRepository = new UserRepository();
+      const userService = new UserService(userRepository);
+      const userController = new UserController(userService);
+      const userRouter = new UserRouter(userController, authMiddleware);
+
+      this.app.use('/api/v1/users', userRouter.mountRoutes());
+
+      this.logger.debug('Express: User routes mounted successfully');
     } catch (error) {
       this.logger.error({ err: error }, 'Express: Failed to mount user routes');
       throw new InternalServerError(
@@ -289,8 +316,8 @@ export class Application implements Lifecycle {
   }
 }
 
-export async function createApp(): Promise<Express> {
-  const app = new Application();
+export async function createApp() {
+  const app = new App();
   await app.start();
-  return app.getApp();
+  return app;
 }
