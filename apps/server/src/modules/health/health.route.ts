@@ -14,15 +14,6 @@ export class HealthRoute {
 
   private setupRoutes() {
     this.router.get('/', (_req, res) => {
-      if (!getApplicationHealth) {
-        res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
-          status: 'unhealthy',
-          message: 'Application not fully initialized',
-          timestamp: new Date().toISOString(),
-        });
-        return;
-      }
-
       const { components, ...appHealth } = getApplicationHealth();
 
       const memory = process.memoryUsage();
@@ -35,9 +26,10 @@ export class HealthRoute {
         : StatusCodes.SERVICE_UNAVAILABLE;
 
       res.status(statusCode).json({
+        component: appHealth.component,
         status: appHealth.status,
         version: envConfig.APP_VERSION,
-        uptimeMs: Math.trunc(process.uptime() * 1000),
+        uptimeMs: appHealth.details?.['uptimeMs'],
         system: {
           platform: process.platform,
           arch: process.arch,
@@ -49,8 +41,8 @@ export class HealthRoute {
             ),
           },
         },
-        timestamp: new Date().toISOString(),
-        components: [{ ...appHealth }, ...(components || [])],
+        timestamp: appHealth.timestamp,
+        components: components ?? [],
       });
     });
   }

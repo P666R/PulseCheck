@@ -83,7 +83,7 @@ class PulseCheck {
       : degradedStatus;
 
     return {
-      component: 'pulsecheck',
+      component: 'application',
       status: overallStatus,
       details: {
         isShuttingDown: this.isShuttingDown,
