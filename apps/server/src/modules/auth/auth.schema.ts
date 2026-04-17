@@ -16,17 +16,13 @@ export const nameSchema = z
   .min(20, 'Name must be at least 20 characters')
   .max(60, 'Name must be at most 60 characters')
   .trim()
-  .regex(/^[a-zA-Z\s]+$/, 'Name can only contain letters and spaces');
+  .toLowerCase();
 
 export const addressSchema = z
   .string()
   .min(1, 'Address is required')
   .max(400, 'Address must be at most 400 characters')
-  .trim()
-  .regex(
-    /^[a-zA-Z0-9\s,.-]+$/,
-    'Address can only contain letters, numbers, spaces, commas, periods, and hyphens',
-  );
+  .trim();
 
 export const passwordSchema = z
   .string()
@@ -39,6 +35,7 @@ export const passwordConfirmSchema = z
   .min(1, 'Password confirmation is required')
   .trim();
 
+// Schemas
 export const registerSchema = z
   .strictObject({
     name: nameSchema,
@@ -52,6 +49,7 @@ export const registerSchema = z
   })
   .refine((v) => v.password === v.passwordConfirm, {
     error: 'Passwords do not match',
+    path: ['passwordConfirm'],
   })
   .readonly();
 
@@ -72,6 +70,7 @@ export const updatePasswordSchema = z
   })
   .refine((v) => v.password === v.passwordConfirm, {
     error: 'Passwords do not match',
+    path: ['passwordConfirm'],
   })
   .readonly();
 
