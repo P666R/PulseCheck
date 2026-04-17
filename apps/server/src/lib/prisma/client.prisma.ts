@@ -83,12 +83,12 @@ class Database implements Lifecycle {
 
     return {
       component: 'database',
+      status,
       details: {
         connected: this._isRunning,
         connecting: this._isConnecting,
         provider: 'postgresql',
       },
-      status,
       timestamp: new Date().toISOString(),
     };
   }
