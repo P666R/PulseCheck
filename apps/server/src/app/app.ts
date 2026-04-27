@@ -26,10 +26,16 @@ import { AuthRepository } from '#src/modules/auth/auth.repository.js';
 import { AuthRouter } from '#src/modules/auth/auth.route.js';
 import { AuthService } from '#src/modules/auth/auth.service.js';
 import { HealthRoute } from '#src/modules/health/health.route.js';
+import { StoreController } from '#src/modules/stores/stores.controller.js';
+import { StoreRepository } from '#src/modules/stores/stores.repository.js';
+import { StoreRouter } from '#src/modules/stores/stores.route.js';
+import { StoreService } from '#src/modules/stores/stores.service.js';
 import { UserController } from '#src/modules/users/users.controller.js';
 import { UserRepository } from '#src/modules/users/users.repository.js';
 import { UserRouter } from '#src/modules/users/users.route.js';
 import { UserService } from '#src/modules/users/users.service.js';
+
+type SharedDeps = ReturnType<App['initializeSharedDependencies']>;
 
 export class App implements Lifecycle {
   private readonly app: Express;
@@ -189,11 +195,11 @@ export class App implements Lifecycle {
       });
     });
 
-    const { authRepository, authMiddleware } =
-      this.initializeSharedDependencies();
+    const shared = this.initializeSharedDependencies();
 
-    this.mountAuthRoutes(authRepository, authMiddleware);
-    this.mountUserRoutes(authMiddleware);
+    this.mountAuthRoutes(shared);
+    this.mountUserRoutes(shared);
+    this.mountStoresRoutes(shared);
 
     this.logger.debug('Express: Routes configured');
   }
@@ -253,10 +259,11 @@ export class App implements Lifecycle {
     try {
       const authRepository = new AuthRepository();
       const authMiddleware = new AuthMiddleware(authRepository);
+      const userRepository = new UserRepository();
 
       this.logger.debug('Express: Shared dependencies initialized');
 
-      return { authRepository, authMiddleware };
+      return { authRepository, userRepository, authMiddleware };
     } catch (error) {
       this.logger.error(
         { err: error },
@@ -270,38 +277,47 @@ export class App implements Lifecycle {
     }
   }
 
-  private createAuthRoutes(
-    authRepository: AuthRepository,
-    authMiddleware: AuthMiddleware,
-  ) {
-    const authService = new AuthService(authRepository);
+  private createAuthRoutes(shared: SharedDeps) {
+    const authService = new AuthService(shared.authRepository);
     const authController = new AuthController(authService);
-    return new AuthRouter(authController, authMiddleware).mountRoutes();
+    return new AuthRouter(authController, shared.authMiddleware).mountRoutes();
   }
 
-  private mountAuthRoutes(
-    authRepository: AuthRepository,
-    authMiddleware: AuthMiddleware,
-  ): void {
+  private mountAuthRoutes(shared: SharedDeps): void {
     this.safelyExecute(() => {
-      this.app.use(
-        '/api/v1/auth',
-        this.createAuthRoutes(authRepository, authMiddleware),
-      );
+      this.app.use('/api/v1/auth', this.createAuthRoutes(shared));
     }, 'Auth route mounting');
   }
 
-  private createUserRoutes(authMiddleware: AuthMiddleware) {
-    const userRepository = new UserRepository();
-    const userService = new UserService(userRepository);
+  private createUserRoutes(shared: SharedDeps) {
+    const userService = new UserService(shared.userRepository);
     const userController = new UserController(userService);
-    return new UserRouter(userController, authMiddleware).mountRoutes();
+    return new UserRouter(userController, shared.authMiddleware).mountRoutes();
   }
 
-  private mountUserRoutes(authMiddleware: AuthMiddleware): void {
+  private mountUserRoutes(shared: SharedDeps): void {
     this.safelyExecute(() => {
-      this.app.use('/api/v1/users', this.createUserRoutes(authMiddleware));
+      this.app.use('/api/v1/users', this.createUserRoutes(shared));
     }, 'User route mounting');
+  }
+
+  private createStoresRoutes(shared: SharedDeps) {
+    const storeRepository = new StoreRepository();
+    const storeService = new StoreService(
+      storeRepository,
+      shared.userRepository,
+    );
+    const storeController = new StoreController(storeService);
+    return new StoreRouter(
+      storeController,
+      shared.authMiddleware,
+    ).mountRoutes();
+  }
+
+  private mountStoresRoutes(shared: SharedDeps): void {
+    this.safelyExecute(() => {
+      this.app.use('/api/v1/stores', this.createStoresRoutes(shared));
+    }, 'Stores route mounting');
   }
 
   private safelyExecute<T>(operation: () => T, context: string): T {
