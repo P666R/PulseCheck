@@ -37,7 +37,6 @@ model User {
 
   @@index([createdAt(sort: Desc)])
   @@index([name])
-  @@index([email])
   @@map("users")
 }
 
@@ -55,6 +54,7 @@ model Store {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([ownerId])
   @@index([name, address])
   @@map("stores")
 }
@@ -73,5 +73,7 @@ model Rating {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([userId, storeId])
+  @@index([userId])
+  @@index([storeId])
   @@map("ratings")
 }

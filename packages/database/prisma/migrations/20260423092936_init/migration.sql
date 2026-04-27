@@ -46,16 +46,25 @@ CREATE TABLE "ratings" (
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE INDEX "users_name_idx" ON "users"("name");
+CREATE INDEX "users_created_at_idx" ON "users"("created_at" DESC);
 
 -- CreateIndex
-CREATE INDEX "users_email_idx" ON "users"("email");
+CREATE INDEX "users_name_idx" ON "users"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "stores_email_key" ON "stores"("email");
 
 -- CreateIndex
+CREATE INDEX "stores_owner_id_idx" ON "stores"("owner_id");
+
+-- CreateIndex
 CREATE INDEX "stores_name_address_idx" ON "stores"("name", "address");
+
+-- CreateIndex
+CREATE INDEX "ratings_user_id_idx" ON "ratings"("user_id");
+
+-- CreateIndex
+CREATE INDEX "ratings_store_id_idx" ON "ratings"("store_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ratings_user_id_store_id_key" ON "ratings"("user_id", "store_id");
