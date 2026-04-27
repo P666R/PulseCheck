@@ -27,6 +27,7 @@
     "dotenv": "^17.4.0",
     "eslint": "^9.39.1",
     "prisma": "^7.6.0",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   },
   "#schema": "https://json.schemastore.org/package"
