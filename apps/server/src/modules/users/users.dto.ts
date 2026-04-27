@@ -1,7 +1,4 @@
-import type {
-  UserSortableField,
-  UserSortOrder,
-} from '#src/config/constants.js';
+import type { SortOrder, UserSortableField } from '#src/config/constants.js';
 
 import { UserRole } from '@repo/db';
 
@@ -11,7 +8,7 @@ export interface UserQueryDto {
   role?: UserRole;
   search?: string;
   sortBy?: UserSortableField;
-  sortOrder?: UserSortOrder;
+  sortOrder?: SortOrder;
 }
 
 export interface CreateUserDto {

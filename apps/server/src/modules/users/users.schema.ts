@@ -1,7 +1,7 @@
 import validator from 'validator';
 import * as z from 'zod';
 
-import { UserSortableField, UserSortOrder } from '#src/config/constants.js';
+import { SortOrder, UserSortableField } from '#src/config/constants.js';
 import { passwordStrength } from '#src/lib/utils/password-strength.util.js';
 import { UserRole } from '@repo/db';
 
@@ -24,12 +24,13 @@ export const addressSchema = z
   .string()
   .min(1, 'Address is required')
   .max(400, 'Address must be at most 400 characters')
-  .trim();
+  .trim()
+  .toLowerCase();
 
 export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters long')
-  .max(80, 'Password cannot be longer than 80 characters')
+  .max(16, 'Password cannot be longer than 16 characters')
   .trim();
 
 export const passwordConfirmSchema = z
@@ -37,24 +38,25 @@ export const passwordConfirmSchema = z
   .min(1, 'Password confirmation is required')
   .trim();
 
-export const roleSchema = z
-  .enum(UserRole)
-  .optional()
-  .default(UserRole.NORMAL_USER);
+export const roleSchema = z.enum(UserRole).optional();
 
 export const pageSchema = z.coerce.number().min(1).default(1);
 
 export const limitSchema = z.coerce.number().min(1).max(100).default(10);
 
-export const searchSchema = z.string().trim().optional();
+export const searchSchema = z
+  .string()
+  .trim()
+  .lowercase()
+  .optional()
+  // Escapes PostgreSQL wildcards to prevent search hijacking
+  .transform((v) => v?.replaceAll(/[_%\\]/g, (match) => '\\' + match));
 
 export const sortBySchema = z
   .enum(UserSortableField)
   .default(UserSortableField.CREATED_AT);
 
-export const sortOrderSchema = z
-  .enum(UserSortOrder)
-  .default(UserSortOrder.DESC);
+export const sortOrderSchema = z.enum(SortOrder).default(SortOrder.DESC);
 
 export const idSchema = z.uuidv4({
   version: 'v4',
@@ -72,7 +74,7 @@ export const createUserSchema = z
         'Password is too weak. Try a longer phrase or add more unique words',
     }),
     passwordConfirm: passwordConfirmSchema,
-    role: roleSchema,
+    role: roleSchema.default(UserRole.NORMAL_USER),
   })
   .refine((v) => v.password === v.passwordConfirm, {
     error: 'Passwords do not match',
