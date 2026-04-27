@@ -43,10 +43,19 @@ export type STATUS = (typeof STATUS)[keyof typeof STATUS];
 export const UserSortableField = {
   NAME: 'name',
   EMAIL: 'email',
+  ADDRESS: 'address',
+  ROLE: 'role',
   CREATED_AT: 'createdAt',
 } as const;
 
-export const UserSortOrder = {
+export const StoreSortableField = {
+  NAME: 'name',
+  EMAIL: 'email',
+  ADDRESS: 'address',
+  CREATED_AT: 'createdAt',
+} as const;
+
+export const SortOrder = {
   ASC: 'asc',
   DESC: 'desc',
 } as const;
@@ -54,4 +63,7 @@ export const UserSortOrder = {
 export type UserSortableField =
   (typeof UserSortableField)[keyof typeof UserSortableField];
 
-export type UserSortOrder = (typeof UserSortOrder)[keyof typeof UserSortOrder];
+export type StoreSortableField =
+  (typeof StoreSortableField)[keyof typeof StoreSortableField];
+
+export type SortOrder = (typeof SortOrder)[keyof typeof SortOrder];
