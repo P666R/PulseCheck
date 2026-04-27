@@ -1,9 +1,6 @@
-import type {
-  UserSortableField,
-  UserSortOrder,
-} from '#src/config/constants.js';
 import type { Prisma, UserRole } from '@repo/db';
 
+import { SortOrder, UserSortableField } from '#src/config/constants.js';
 import { db } from '#src/lib/prisma/client.prisma.js';
 
 export class UserRepository {
@@ -42,15 +39,15 @@ export class UserRepository {
     role?: UserRole;
     search?: string;
     sortBy?: UserSortableField;
-    sortOrder?: UserSortOrder;
+    sortOrder?: SortOrder;
   }) {
     const {
       page = 1,
       limit = 10,
       role,
       search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
+      sortBy = UserSortableField.CREATED_AT,
+      sortOrder = SortOrder.DESC,
     } = params;
     const skip = (page - 1) * limit;
 
@@ -58,14 +55,14 @@ export class UserRepository {
       ...(role && { role }),
       ...(search && {
         OR: [
-          { name: { contains: search.toLowerCase() } },
-          { email: { contains: search.toLowerCase() } },
+          { name: { contains: search } },
+          { email: { contains: search } },
+          { address: { contains: search } },
         ],
       }),
     };
 
-    // Parallel execution for 2026 performance standards
-    const [total, users] = await Promise.all([
+    const [total, rawUsers] = await Promise.all([
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
         where,
@@ -73,8 +70,33 @@ export class UserRepository {
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         omit: this.defaultOmit,
+        include: {
+          ratings: { select: { rating: true } },
+          ownedStores: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          _count: { select: { ownedStores: true } },
+        },
       }),
     ]);
+
+    const users = rawUsers.map((user) => {
+      const ratings = user.ratings || [];
+      const avgRating =
+        ratings.length > 0
+          ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
+          : 0;
+
+      const { ratings: _, ...rest } = user;
+      return {
+        ...rest,
+        avgRating: Number.parseFloat(avgRating.toFixed(1)),
+        totalRatings: ratings.length,
+      };
+    });
 
     return {
       users,
@@ -93,8 +115,15 @@ export class UserRepository {
    * Manually adds a user with a specific role (e.g., adding another Admin).
    */
   async create(data: Prisma.UserCreateInput) {
+    const { name, email, address, ...rest } = data;
+
     return this.prisma.user.create({
-      data,
+      data: {
+        name: name.toLowerCase(),
+        email: email.toLowerCase(),
+        address: address.toLowerCase(),
+        ...rest,
+      },
       omit: this.defaultOmit,
     });
   }
