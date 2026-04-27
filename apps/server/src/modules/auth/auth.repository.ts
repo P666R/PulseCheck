@@ -10,22 +10,29 @@ export class AuthRepository {
   } as const;
 
   async register(data: Prisma.UserCreateInput) {
+    const { name, email, address, ...rest } = data;
+
     return this.prisma.user.create({
-      data,
+      data: {
+        name: name.toLowerCase(),
+        email: email.toLowerCase(),
+        address: address.toLowerCase(),
+        ...rest,
+      },
       omit: this.defaultOmit,
     });
   }
 
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
       omit: this.defaultOmit,
     });
   }
 
   async findByEmailInsecure(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
     });
   }
 
