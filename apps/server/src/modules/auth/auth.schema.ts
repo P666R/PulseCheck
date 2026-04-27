@@ -22,12 +22,13 @@ export const addressSchema = z
   .string()
   .min(1, 'Address is required')
   .max(400, 'Address must be at most 400 characters')
-  .trim();
+  .trim()
+  .toLowerCase();
 
 export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters long')
-  .max(80, 'Password cannot be longer than 80 characters')
+  .max(16, 'Password cannot be longer than 16 characters')
   .trim();
 
 export const passwordConfirmSchema = z
