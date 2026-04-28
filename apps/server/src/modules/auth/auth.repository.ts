@@ -1,15 +1,12 @@
+import type { DefaultOmit } from '#src/modules/auth/auth.service.js';
 import type { Prisma } from '@repo/db';
 
 import { db } from '#src/lib/prisma/client.prisma.js';
 
 export class AuthRepository {
   private readonly prisma = db.getClient();
-  private readonly defaultOmit = {
-    password: true,
-    refreshTokens: true,
-  } as const;
 
-  async register(data: Prisma.UserCreateInput) {
+  async register(data: Prisma.UserCreateInput, omit: DefaultOmit) {
     const { name, email, address, ...rest } = data;
 
     return this.prisma.user.create({
@@ -19,39 +16,33 @@ export class AuthRepository {
         address: address.toLowerCase(),
         ...rest,
       },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, omit?: DefaultOmit) {
     return this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  async findByEmailInsecure(email: string) {
-    return this.prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-  }
-
-  async findById(id: string) {
+  async findById(id: string, omit: DefaultOmit) {
     return this.prisma.user.findUnique({
       where: { id },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  async updateRefreshTokens(id: string, tokens: string[]) {
+  async updateRefreshTokens(id: string, tokens: string[], omit: DefaultOmit) {
     return this.prisma.user.update({
       where: { id },
       data: { refreshTokens: tokens },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  async updatePassword(id: string, passwordHash: string) {
+  async updatePassword(id: string, passwordHash: string, omit: DefaultOmit) {
     return this.prisma.user.update({
       where: { id },
       data: {
@@ -59,11 +50,14 @@ export class AuthRepository {
         passwordChangedAt: new Date(),
         refreshTokens: { set: [] },
       },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  async findByRefTokenAndDeleteRefToken(refreshToken: string) {
+  async findByRefTokenAndDeleteRefToken(
+    refreshToken: string,
+    omit: DefaultOmit,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findFirst({
         where: { refreshTokens: { has: refreshToken } },
@@ -78,12 +72,16 @@ export class AuthRepository {
       return tx.user.update({
         where: { id: user.id },
         data: { refreshTokens: { set: updatedTokens } },
-        omit: this.defaultOmit,
+        omit,
       });
     });
   }
 
-  async findByRefTokenAndRotateRefToken(oldToken: string, newToken: string) {
+  async findByRefTokenAndRotateRefToken(
+    oldToken: string,
+    newToken: string,
+    omit: DefaultOmit,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findFirst({
         where: { refreshTokens: { has: oldToken } },
@@ -99,7 +97,7 @@ export class AuthRepository {
       return tx.user.update({
         where: { id: user.id },
         data: { refreshTokens: { set: updatedTokens } },
-        omit: this.defaultOmit,
+        omit,
       });
     });
   }

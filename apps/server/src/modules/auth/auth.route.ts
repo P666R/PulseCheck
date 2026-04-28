@@ -17,6 +17,8 @@ export class AuthRouter {
   ) {}
 
   mountRoutes(): Router {
+    const { checkAuth } = this.authMiddleware;
+
     this.authRouter
       .route('/register')
       .post(
@@ -32,7 +34,7 @@ export class AuthRouter {
 
     this.authRouter.route('/logout').post(this.authController.logout);
 
-    this.authRouter.use(this.authMiddleware.checkAuth);
+    this.authRouter.use(checkAuth);
 
     this.authRouter
       .route('/password')

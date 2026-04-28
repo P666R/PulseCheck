@@ -93,7 +93,6 @@ export class AuthController extends BaseController {
 
     return this.sendSuccessResponse(req, res, {
       message: 'Logged out successfully',
-      data: user,
     });
   }
 

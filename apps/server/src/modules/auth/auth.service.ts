@@ -7,6 +7,7 @@ import type {
   UpdatePasswordDto,
 } from '#src/modules/auth/auth.dto.js';
 import type { MyRefreshTokenPayload } from '#src/modules/auth/auth.type.js';
+import type { User } from '@repo/db';
 
 import { envConfig } from '#src/config/env.config.js';
 import {
@@ -18,6 +19,16 @@ import {
 import { logger } from '#src/lib/logger/pino.logger.js';
 import { hashPassword, verifyPassword } from '#src/lib/utils/password.util.js';
 import { AuthRepository } from '#src/modules/auth/auth.repository.js';
+
+const DEFAULT_OMIT = {
+  password: true,
+  refreshTokens: true,
+  passwordChangedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+export type DefaultOmit = Partial<typeof DEFAULT_OMIT>;
 
 const {
   JWT_ALGO,
@@ -34,6 +45,7 @@ export class AuthService {
     JWT_REFRESH_SECRET_KEY,
   );
   private readonly logger = logger.createChild({ service: 'AuthService' });
+  private readonly defaultOmit = DEFAULT_OMIT;
 
   constructor(private readonly authRepository: AuthRepository) {}
 
@@ -58,7 +70,10 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const { name, email, address, password } = dto;
 
-    const userExists = await this.authRepository.findByEmail(email);
+    const userExists = await this.authRepository.findByEmail(
+      email,
+      this.defaultOmit,
+    );
     if (userExists) {
       this.logger.info('Email already registered');
       throw new ConflictError('Email already registered');
@@ -66,12 +81,15 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(password);
 
-    const user = await this.authRepository.register({
-      name,
-      email,
-      address,
-      password: hashedPassword,
-    });
+    const user = await this.authRepository.register(
+      {
+        name,
+        email,
+        address,
+        password: hashedPassword,
+      },
+      this.defaultOmit,
+    );
 
     return user;
   }
@@ -79,7 +97,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const { email, password, currentCookieToken } = dto;
 
-    const existingUser = await this.authRepository.findByEmailInsecure(email);
+    const existingUser = (await this.authRepository.findByEmail(email)) as User;
 
     const storedHash = existingUser
       ? existingUser.password
@@ -103,6 +121,7 @@ export class AuthService {
           const compromisedUser = await this.authRepository.updateRefreshTokens(
             existingUser.id,
             [],
+            this.defaultOmit,
           );
 
           this.logger.warn(
@@ -133,14 +152,17 @@ export class AuthService {
     const user = await this.authRepository.updateRefreshTokens(
       existingUser.id,
       updatedRefreshTokens,
+      this.defaultOmit,
     );
 
     return { user, accessToken, refreshToken: newRefreshToken };
   }
 
   async logout(refreshToken: string) {
-    const user =
-      await this.authRepository.findByRefTokenAndDeleteRefToken(refreshToken);
+    const user = await this.authRepository.findByRefTokenAndDeleteRefToken(
+      refreshToken,
+      this.defaultOmit,
+    );
 
     return user;
   }
@@ -168,11 +190,16 @@ export class AuthService {
       await this.authRepository.findByRefTokenAndRotateRefToken(
         refreshToken,
         newRefreshToken,
+        this.defaultOmit,
       );
 
     // 4. Theft Detection Logic
     if (!existingUser) {
-      await this.authRepository.updateRefreshTokens(payload.id, []);
+      await this.authRepository.updateRefreshTokens(
+        payload.id,
+        [],
+        this.defaultOmit,
+      );
       this.logger.warn(
         { userId: payload.id },
         'Potential token reuse detected. All sessions revoked',
@@ -193,7 +220,10 @@ export class AuthService {
   async updatePassword(dto: UpdatePasswordDto) {
     const { password, userId } = dto;
 
-    const existingUser = await this.authRepository.findById(userId);
+    const existingUser = await this.authRepository.findById(
+      userId,
+      this.defaultOmit,
+    );
 
     if (!existingUser) {
       this.logger.info('User not found');
@@ -205,6 +235,7 @@ export class AuthService {
     const user = await this.authRepository.updatePassword(
       userId,
       hashedPassword,
+      this.defaultOmit,
     );
 
     return user;
