@@ -44,7 +44,8 @@ export const sortOrderSchema = z.enum(SortOrder).default(SortOrder.DESC);
 export const ratingSchema = z.coerce
   .number()
   .min(1, 'Rating must be at least 1')
-  .max(5, 'Rating must be at most 5');
+  .max(5, 'Rating must be at most 5')
+  .refine((v) => Number.isInteger(v), { error: 'Rating must be an integer' });
 
 export const createStoreSchema = z
   .strictObject({

@@ -27,7 +27,7 @@ export class StoreRepository {
     };
   }
 
-  async findAllPaginated(params: StoreQueryDto) {
+  async findAllPaginated(params: StoreQueryDto, omit: Prisma.StoreOmit) {
     const {
       page = 1,
       limit = 10,
@@ -54,6 +54,7 @@ export class StoreRepository {
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
+        omit,
         include: {
           owner: {
             select: {
@@ -87,7 +88,7 @@ export class StoreRepository {
     };
   }
 
-  async create(data: CreateStoreDto) {
+  async create(data: CreateStoreDto, omit: Prisma.StoreOmit) {
     const { name, email, address, ...rest } = data;
     return this.prisma.store.create({
       data: {
@@ -96,29 +97,44 @@ export class StoreRepository {
         address: address.toLowerCase(),
         ...rest,
       },
+      omit,
     });
   }
 
-  async findById(id: string) {
+  async findById(id: string, omit: Prisma.StoreOmit) {
     return this.prisma.store.findUnique({
       where: { id },
-      include: { owner: true, ratings: true },
+      include: {
+        owner: {
+          omit: {
+            password: true,
+            refreshTokens: true,
+            passwordChangedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        ratings: { omit },
+      },
+      omit,
     });
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, omit: Prisma.StoreOmit) {
     return this.prisma.store.findUnique({
       where: { email: email.toLowerCase() },
+      omit,
     });
   }
 
-  async findByOwner(ownerId: string) {
+  async findByOwner(ownerId: string, omit: Prisma.StoreOmit) {
     const stores = await this.prisma.store.findMany({
       where: { ownerId },
       include: {
         ratings: { select: { rating: true } },
         _count: { select: { ratings: true } },
       },
+      omit,
     });
 
     return stores.map((store) => this.transformStore(store));
@@ -143,22 +159,33 @@ export class StoreRepository {
     };
   }
 
-  async upsertRating(userId: string, storeId: string, value: number) {
+  async upsertRating(
+    userId: string,
+    storeId: string,
+    value: number,
+    omit: Prisma.StoreOmit,
+  ) {
     return this.prisma.rating.upsert({
       where: {
         userId_storeId: { userId, storeId },
       },
       update: { rating: value },
       create: { userId, storeId, rating: value },
+      omit,
     });
   }
 
-  async getStoreRatings(storeId: string, isAdmin: boolean) {
+  async getStoreRatings(
+    storeId: string,
+    isAdmin: boolean,
+    omit: Prisma.StoreOmit,
+  ) {
     return this.prisma.rating.findMany({
       where: { storeId },
       include: {
         user: { select: { id: true, name: true, email: isAdmin } },
       },
+      omit,
     });
   }
 }

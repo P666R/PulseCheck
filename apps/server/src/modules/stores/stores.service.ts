@@ -15,6 +15,10 @@ import { UserRole } from '@repo/db';
 
 export class StoreService {
   private readonly logger = logger.createChild({ service: 'StoreService' });
+  private readonly defaultOmit = {
+    createdAt: true,
+    updatedAt: true,
+  } as const;
 
   constructor(
     private readonly storeRepository: StoreRepository,
@@ -25,8 +29,8 @@ export class StoreService {
     const { email, ownerId } = dto;
 
     const [existingStore, owner] = await Promise.all([
-      this.storeRepository.findByEmail(email),
-      this.userRepository.findById(ownerId),
+      this.storeRepository.findByEmail(email, this.defaultOmit),
+      this.userRepository.findById(ownerId, this.defaultOmit),
     ]);
 
     if (existingStore) {
@@ -39,15 +43,18 @@ export class StoreService {
       throw new NotFoundError('Invalid store owner');
     }
 
-    return this.storeRepository.create(dto);
+    return this.storeRepository.create(dto, this.defaultOmit);
   }
 
   async getAllStores(query: StoreQueryDto) {
-    return this.storeRepository.findAllPaginated(query);
+    return this.storeRepository.findAllPaginated(query, this.defaultOmit);
   }
 
   async getStoreDetails(storeId: string) {
-    const store = await this.storeRepository.findById(storeId);
+    const store = await this.storeRepository.findById(
+      storeId,
+      this.defaultOmit,
+    );
 
     if (!store) {
       throw new NotFoundError('Store not found');
@@ -62,7 +69,7 @@ export class StoreService {
     }
 
     const [stores, stats] = await Promise.all([
-      this.storeRepository.findByOwner(ownerId),
+      this.storeRepository.findByOwner(ownerId, this.defaultOmit),
       this.storeRepository.getOwnerStats(ownerId),
     ]);
 
@@ -73,18 +80,30 @@ export class StoreService {
   }
 
   async rateStore(userId: string, storeId: string, value: number) {
-    const storeExists = await this.storeRepository.findById(storeId);
+    const storeExists = await this.storeRepository.findById(
+      storeId,
+      this.defaultOmit,
+    );
 
     if (!storeExists) {
       this.logger.info({ storeId }, 'Store not found');
       throw new NotFoundError('Store not found');
     }
 
-    return this.storeRepository.upsertRating(userId, storeId, value);
+    return this.storeRepository.upsertRating(
+      userId,
+      storeId,
+      value,
+      this.defaultOmit,
+    );
   }
 
   async getStoreRatings(storeId: string, role: UserRole) {
     const isAdmin = role === UserRole.SYSTEM_ADMIN;
-    return this.storeRepository.getStoreRatings(storeId, isAdmin);
+    return this.storeRepository.getStoreRatings(
+      storeId,
+      isAdmin,
+      this.defaultOmit,
+    );
   }
 }
