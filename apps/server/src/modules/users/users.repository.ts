@@ -6,41 +6,31 @@ import { db } from '#src/lib/prisma/client.prisma.js';
 export class UserRepository {
   private readonly prisma = db.getClient();
 
-  private readonly defaultOmit = {
-    password: true,
-    refreshTokens: true,
-  } as const;
-
-  /**
-   * GET /me
-   * Fetches the profile of the currently authenticated user.
-   */
-  async findById(id: string) {
+  async findById(id: string, omit: Prisma.UserOmit) {
     return this.prisma.user.findUnique({
       where: { id },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, omit: Prisma.UserOmit) {
     return this.prisma.user.findUnique({
       where: { email },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  /**
-   * GET / (Admin)
-   * Lists users with pagination and filtering by role/search term.
-   */
-  async findAllPaginated(params: {
-    page: number;
-    limit: number;
-    role?: UserRole;
-    search?: string;
-    sortBy?: UserSortableField;
-    sortOrder?: SortOrder;
-  }) {
+  async findAllPaginated(
+    params: {
+      page: number;
+      limit: number;
+      role?: UserRole;
+      search?: string;
+      sortBy?: UserSortableField;
+      sortOrder?: SortOrder;
+    },
+    omit: Prisma.UserOmit,
+  ) {
     const {
       page = 1,
       limit = 10,
@@ -62,41 +52,16 @@ export class UserRepository {
       }),
     };
 
-    const [total, rawUsers] = await Promise.all([
+    const [total, users] = await Promise.all([
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
         where,
         skip,
         take: limit,
         orderBy: { [sortBy]: sortOrder },
-        omit: this.defaultOmit,
-        include: {
-          ratings: { select: { rating: true } },
-          ownedStores: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          _count: { select: { ownedStores: true } },
-        },
+        omit,
       }),
     ]);
-
-    const users = rawUsers.map((user) => {
-      const ratings = user.ratings || [];
-      const avgRating =
-        ratings.length > 0
-          ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
-          : 0;
-
-      const { ratings: _, ...rest } = user;
-      return {
-        ...rest,
-        avgRating: Number.parseFloat(avgRating.toFixed(1)),
-        totalRatings: ratings.length,
-      };
-    });
 
     return {
       users,
@@ -110,11 +75,7 @@ export class UserRepository {
     };
   }
 
-  /**
-   * POST / (Admin)
-   * Manually adds a user with a specific role (e.g., adding another Admin).
-   */
-  async create(data: Prisma.UserCreateInput) {
+  async create(data: Prisma.UserCreateInput, omit: Prisma.UserOmit) {
     const { name, email, address, ...rest } = data;
 
     return this.prisma.user.create({
@@ -124,33 +85,23 @@ export class UserRepository {
         address: address.toLowerCase(),
         ...rest,
       },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  /**
-   * GET /:id (Admin)
-   * Detailed view including aggregated activity counts.
-   */
-  async findWithStats(id: string) {
+  async findWithStats(id: string, omit: Prisma.UserOmit) {
     return this.prisma.user.findUnique({
       where: { id },
       include: {
-        _count: {
-          select: {
-            ownedStores: true, // Counts stores they own
-            ratings: true, // Counts ratings they've given
-          },
+        ratings: { omit: { userId: true, updatedAt: true, createdAt: true } },
+        ownedStores: {
+          omit: { ownerId: true, updatedAt: true, createdAt: true },
         },
       },
-      omit: this.defaultOmit,
+      omit,
     });
   }
 
-  /**
-   * GET /stats (Admin)
-   * High-level system dashboard snapshot.
-   */
   async getSystemStats() {
     const [totalUsers, totalStores, totalRatings] = await Promise.all([
       this.prisma.user.count(),
