@@ -20,16 +20,6 @@ import { logger } from '#src/lib/logger/pino.logger.js';
 import { hashPassword, verifyPassword } from '#src/lib/utils/password.util.js';
 import { AuthRepository } from '#src/modules/auth/auth.repository.js';
 
-const DEFAULT_OMIT = {
-  password: true,
-  refreshTokens: true,
-  passwordChangedAt: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
-
-export type DefaultOmit = Partial<typeof DEFAULT_OMIT>;
-
 const {
   JWT_ALGO,
   JWT_ACCESS_SECRET_KEY,
@@ -45,7 +35,13 @@ export class AuthService {
     JWT_REFRESH_SECRET_KEY,
   );
   private readonly logger = logger.createChild({ service: 'AuthService' });
-  private readonly defaultOmit = DEFAULT_OMIT;
+  private readonly defaultOmit = {
+    password: true,
+    refreshTokens: true,
+    passwordChangedAt: true,
+    createdAt: true,
+    updatedAt: true,
+  } as const;
 
   constructor(private readonly authRepository: AuthRepository) {}
 

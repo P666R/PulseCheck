@@ -2,7 +2,6 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { errors, jwtVerify } from 'jose';
 
-import type { DefaultOmit } from '#src/modules/auth/auth.service.js';
 import type {
   AuthenticatedRequest,
   MyAccessTokenPayload,
@@ -55,7 +54,7 @@ export class AuthMiddleware {
         refreshTokens: true,
         createdAt: true,
         updatedAt: true,
-      } as DefaultOmit);
+      });
 
       if (!user) {
         req.log.info('User no longer exists');

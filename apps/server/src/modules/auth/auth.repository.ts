@@ -1,4 +1,3 @@
-import type { DefaultOmit } from '#src/modules/auth/auth.service.js';
 import type { Prisma } from '@repo/db';
 
 import { db } from '#src/lib/prisma/client.prisma.js';
@@ -6,7 +5,7 @@ import { db } from '#src/lib/prisma/client.prisma.js';
 export class AuthRepository {
   private readonly prisma = db.getClient();
 
-  async register(data: Prisma.UserCreateInput, omit: DefaultOmit) {
+  async register(data: Prisma.UserCreateInput, omit: Prisma.UserOmit) {
     const { name, email, address, ...rest } = data;
 
     return this.prisma.user.create({
@@ -20,21 +19,25 @@ export class AuthRepository {
     });
   }
 
-  async findByEmail(email: string, omit?: DefaultOmit) {
+  async findByEmail(email: string, omit?: Prisma.UserOmit) {
     return this.prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       omit,
     });
   }
 
-  async findById(id: string, omit: DefaultOmit) {
+  async findById(id: string, omit: Prisma.UserOmit) {
     return this.prisma.user.findUnique({
       where: { id },
       omit,
     });
   }
 
-  async updateRefreshTokens(id: string, tokens: string[], omit: DefaultOmit) {
+  async updateRefreshTokens(
+    id: string,
+    tokens: string[],
+    omit: Prisma.UserOmit,
+  ) {
     return this.prisma.user.update({
       where: { id },
       data: { refreshTokens: tokens },
@@ -42,7 +45,11 @@ export class AuthRepository {
     });
   }
 
-  async updatePassword(id: string, passwordHash: string, omit: DefaultOmit) {
+  async updatePassword(
+    id: string,
+    passwordHash: string,
+    omit: Prisma.UserOmit,
+  ) {
     return this.prisma.user.update({
       where: { id },
       data: {
@@ -56,7 +63,7 @@ export class AuthRepository {
 
   async findByRefTokenAndDeleteRefToken(
     refreshToken: string,
-    omit: DefaultOmit,
+    omit: Prisma.UserOmit,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findFirst({
@@ -80,7 +87,7 @@ export class AuthRepository {
   async findByRefTokenAndRotateRefToken(
     oldToken: string,
     newToken: string,
-    omit: DefaultOmit,
+    omit: Prisma.UserOmit,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findFirst({
