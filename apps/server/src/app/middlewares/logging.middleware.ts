@@ -1,31 +1,22 @@
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import type { Logger as PinoLogger } from 'pino';
 
-import { type HttpLogger, pinoHttp } from 'pino-http';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
+import { pinoHttp } from 'pino-http';
+import * as z from 'zod';
 
 import { envConfig } from '#src/config/env.config.js';
 import { AppError } from '#src/lib/api/app-error.api.js';
 import { Logger } from '#src/lib/logger/pino.logger.js';
-
-export function enrichRequestLogger(
-  req: Request,
-  context: Record<string, unknown>,
-): void {
-  req.log = req.log.child(context);
-}
-
-export function getRequestLogger(req: Request): PinoLogger {
-  return req.log;
-}
+import { loggerStore } from '#src/lib/utils/context-provider.util.js';
 
 const logger = Logger.getInstance(envConfig);
 
-export function httpLoggingMiddleware(): HttpLogger {
+export const httpLoggingMiddleware = () => {
   const { isProd } = envConfig;
   const { errorSerializerDev, errorSerializerProd } = logger;
 
-  return pinoHttp({
+  const pino = pinoHttp({
     autoLogging: {
       ignore: (req: Request) => {
         const ignoredPaths = ['/health', '/metrics', '/favicon.ico'];
@@ -39,29 +30,30 @@ export function httpLoggingMiddleware(): HttpLogger {
       responseTime: 'durationMs',
     },
 
-    customErrorMessage: (req, res, err) => {
-      const errorCode = err instanceof AppError ? err.errorCode : 'UNKNOWN';
-      return `✗ ${req.method} ${req.url} ${res.statusCode} [${errorCode}] ${err.message}`;
+    customReceivedMessage: () => '→ Incoming Request',
+
+    customSuccessMessage: () => '← Request Completed',
+
+    customErrorMessage: (_req, _res, err) => {
+      let errorCode = 'UNKNOWN_ERROR';
+      if (err instanceof z.ZodError) errorCode = 'VALIDATION_ERROR';
+      if (err instanceof AppError) errorCode = err.errorCode;
+
+      return `✗ Request Failed [${errorCode}]`;
     },
 
     customLogLevel: (_req, res, err) => {
       if (err || res.statusCode >= 500) return 'error';
-      if (res.statusCode >= 400) return 'warn';
+      // If the user did something wrong (4xx), it's just info to avoid alert fatigue
+      if (res.statusCode >= 400) return 'info';
       return 'info';
     },
 
-    customProps: (req: Request) => ({
-      correlationId: req.correlationId,
+    // Ensure trace IDs are explicitly included in the log object
+    customProps: (req) => ({
       requestId: req.id,
+      correlationId: req.correlationId,
     }),
-
-    customReceivedMessage: (req) => {
-      return `→ ${req.method} ${req.url}`;
-    },
-
-    customSuccessMessage: (req, res) => {
-      return `← ${req.method} ${req.url} ${res.statusCode}`;
-    },
 
     genReqId: (req: Request, res: Response) => {
       const requestIdHeader = req.headers['x-request-id'];
@@ -70,12 +62,12 @@ export function httpLoggingMiddleware(): HttpLogger {
       const requestId =
         (Array.isArray(requestIdHeader)
           ? requestIdHeader[0]
-          : requestIdHeader) ?? uuidv4();
+          : requestIdHeader) ?? randomUUID();
 
       const correlationId =
         (Array.isArray(correlationIdHeader)
           ? correlationIdHeader[0]
-          : correlationIdHeader) ?? uuidv4();
+          : correlationIdHeader) ?? randomUUID();
 
       req.id = requestId;
       req.correlationId = correlationId;
@@ -86,16 +78,14 @@ export function httpLoggingMiddleware(): HttpLogger {
       return requestId;
     },
 
-    logger: logger.createChild({
-      service: 'HTTP',
-    }),
+    // Uses the service-aware Proxy logger for HTTP access logs
+    logger: logger.createChild({ service: 'HTTP' }),
 
     serializers: {
       err: isProd ? errorSerializerProd : errorSerializerDev,
 
       req: (req: Request) => ({
         contentLength: req.headers['content-length'],
-        id: req.id,
         method: req.method,
         url: req.url,
       }),
@@ -106,5 +96,33 @@ export function httpLoggingMiddleware(): HttpLogger {
     },
 
     wrapSerializers: false,
-  }) as HttpLogger;
+  });
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Manually trigger pino-http to ensure req.log and IDs are initialized
+    pino(req, res);
+    // Provide req.log to the store so createChild() proxies can access it
+    loggerStore.run(req.log, () => next());
+  };
+};
+
+/**
+ * Updates the current request's logger with new context (e.g., userId).
+ * Mutate the existing child bindings method on the base logger instance.
+ */
+export function enrichRequestLogger(
+  req: Request,
+  context: Record<string, unknown>,
+): void {
+  if (req.log) {
+    const enrichedLogger = req.log.child(context);
+
+    const newBindings = enrichedLogger.bindings();
+
+    req.log.bindings = () => newBindings;
+  }
+}
+
+export function getRequestLogger(req: Request): PinoLogger {
+  return req.log;
 }
