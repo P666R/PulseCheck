@@ -51,3 +51,6 @@ logs
 
 # Prisma
 **/generated/prisma
+
+# Next
+**/next-env.d.ts
