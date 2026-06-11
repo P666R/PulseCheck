@@ -19,11 +19,17 @@ export const validateRequest =
         'cookies',
       ];
 
+      // Safe initialization to prevent overwriting existing data across chained middlewares
+      req.validatedData = req.validatedData || {};
+
       for (const target of targets) {
         if (schemas[target] && req[target]) {
-          const validatedData = schemas[target].parse(req[target]);
-          // Modify the object content instead of reassigning the property
-          Object.assign(req[target], validatedData);
+          req.validatedData[target] = schemas[target].parse(
+            req[target],
+          ) as Record<string, unknown>;
+        } else {
+          // Guard and fallback safely to an empty object without erasing prior middleware keys
+          req.validatedData[target] = req.validatedData[target] || {};
         }
       }
       next();
