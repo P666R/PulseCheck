@@ -4,35 +4,14 @@ import { StatusCodes } from 'http-status-codes';
 
 import type { ApiSuccessResponse } from '#src/types/response.type.js';
 
-import { STATUS } from '#src/config/constants.js';
-
 export abstract class BaseController {
-  protected sendSuccessResponse(
-    req: Request,
+  protected sendSuccessResponse<T extends Record<string, unknown>>(
+    _req: Request,
     res: Response,
-    {
-      message,
-      data,
-      accessToken,
-      status = StatusCodes.OK,
-    }: {
-      message: string;
-      data?: object;
-      accessToken?: string;
-      status?: StatusCodes;
-    },
+    payload: ApiSuccessResponse<T>,
+    status = StatusCodes.OK,
   ) {
-    const response: ApiSuccessResponse = {
-      status: STATUS.SUCCESS,
-      message,
-      data,
-      accessToken,
-      requestId: req.id,
-      correlationId: req.correlationId,
-      timestamp: new Date(),
-    };
-
-    return res.status(status).json(response);
+    return res.status(status).json(payload);
   }
 
   protected getCookieOptions(maxAge: number): CookieOptions {
