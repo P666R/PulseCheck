@@ -52,6 +52,7 @@ export class Logger {
     };
   }
 
+  // Error serializer for development environment
   public errorSerializerDev(error: unknown): SerializedError {
     if (error instanceof ZodError) {
       return this.zodErrorSerializer(error);
@@ -70,6 +71,7 @@ export class Logger {
       isOperational: err.isOperational,
     };
 
+    // Recursively serialize a cause chain if it exists
     if (err.cause) {
       base['cause'] =
         err.cause instanceof Error
@@ -80,6 +82,7 @@ export class Logger {
     return base;
   }
 
+  // Error serializer for production environment
   public errorSerializerProd(error: unknown): SerializedError {
     if (error instanceof ZodError) {
       return this.zodErrorSerializer(error);
@@ -91,15 +94,20 @@ export class Logger {
       type: err.name,
     };
 
+    // Preserve known custom fields
     if (err.statusCode) base['statusCode'] = err.statusCode;
     if (err.errorCode) base['errorCode'] = err.errorCode;
     if (err.isOperational) base['isOperational'] = err.isOperational;
+    if (err.status) base['status'] = err.status;
 
+    // Include details only for operational (4xx) errors
     if (err.details && err.isOperational) base['details'] = err.details;
 
+    // Include stack trace only for server (5xx) errors in production
     if (err.statusCode && err.statusCode >= 500) {
       base['stack'] = err.stack;
 
+      // Capture error cause chain
       if (err.cause) {
         base['cause'] =
           err.cause instanceof Error
@@ -166,12 +174,13 @@ export class Logger {
     if (isProd) {
       basePinoConfig.transport = {
         targets: [
+          // Stdout for cloud collectors
           {
             level: LOG_LEVEL,
             target: 'pino/file',
             options: { destination: 1 },
           },
-
+          // Rotating file for on‑disk backup
           {
             level: LOG_LEVEL,
             target: 'pino-roll',
@@ -209,6 +218,10 @@ export class Logger {
           // Request body fields
           'req.body.password',
           'req.body.token',
+          'req.body.passwordConfirm',
+          'req.validatedData.body.password',
+          'req.validatedData.body.token',
+          'req.validatedData.body.passwordConfirm',
         ],
         censor: '[REDACTED]',
       };
@@ -230,35 +243,43 @@ export class Logger {
     return Logger.instance;
   }
 
+  /**
+   * Creates a context-aware child logger using a Memoized Proxy.
+   * Merges static service data with dynamic trace IDs from AsyncLocalStorage.
+   */
   public createChild(bindings: Bindings): PinoLogger {
     const childLogger = this.logger.child(bindings);
 
+    // WeakMap ensures cached loggers are garbage collected when request ends
     const requestCache = new WeakMap<object, PinoLogger>();
 
-    return new Proxy(childLogger, {
+    return new Proxy<PinoLogger>(childLogger, {
       get(target, prop, receiver) {
         const requestLogger = loggerStore.getStore();
 
+        // 1. Context fallback (outside of HTTP requests)
         if (!requestLogger) {
           const value = Reflect.get(target, prop, receiver);
           return typeof value === 'function' ? value.bind(target) : value;
         }
 
+        // 2. Check cache to avoid redundant .child() calls for same request
         let traceLogger = requestCache.get(requestLogger);
 
         if (!traceLogger) {
-          const { correlationId, requestId } = (
-            requestLogger as PinoLogger
-          ).bindings();
+          // 3. Only extract tracing IDs etc, discard req/res objects
+          const allBindings = (requestLogger as PinoLogger).bindings();
+          const { req: _, res: __, ...cleanContext } = allBindings;
 
-          traceLogger = target.child({ correlationId, requestId });
+          // 4. Create the tracing child once per request/service combination
+          traceLogger = target.child(cleanContext);
           requestCache.set(requestLogger, traceLogger);
         }
 
         const value = Reflect.get(traceLogger, prop, receiver);
         return typeof value === 'function' ? value.bind(traceLogger) : value;
       },
-    }) as PinoLogger;
+    });
   }
 }
 
