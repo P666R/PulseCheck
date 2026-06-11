@@ -4,6 +4,7 @@ import { AuthMiddleware } from '#src/app/middlewares/check-auth.middleware.js';
 import { validateRequest } from '#src/app/middlewares/validation.middleware.js';
 import { AuthController } from '#src/modules/auth/auth.controller.js';
 import {
+  loginCookieSchema,
   loginSchema,
   registerSchema,
   updatePasswordSchema,
@@ -28,11 +29,19 @@ export class AuthRouter {
 
     this.authRouter
       .route('/login')
-      .post(validateRequest({ body: loginSchema }), this.authController.login);
+      .post(
+        validateRequest({ cookies: loginCookieSchema, body: loginSchema }),
+        this.authController.login,
+      );
 
     this.authRouter.route('/refresh').post(this.authController.newAccessToken);
 
-    this.authRouter.route('/logout').post(this.authController.logout);
+    this.authRouter
+      .route('/logout')
+      .post(
+        validateRequest({ cookies: loginCookieSchema }),
+        this.authController.logout,
+      );
 
     this.authRouter.use(checkAuth);
 
