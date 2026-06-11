@@ -1,5 +1,5 @@
 import { jwtVerify, SignJWT } from 'jose';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 import type {
   LoginDto,
@@ -50,7 +50,7 @@ export class AuthService {
       .setProtectedHeader({ alg: JWT_ALGO })
       .setIssuedAt()
       .setExpirationTime('10m')
-      .setJti(uuidv4()) // JTI prevents replay attacks
+      .setJti(randomUUID()) // JTI prevents replay attacks
       .sign(this.jwtAccessSecret);
   }
 
@@ -59,7 +59,7 @@ export class AuthService {
       .setProtectedHeader({ alg: JWT_ALGO })
       .setIssuedAt()
       .setExpirationTime('1d')
-      .setJti(uuidv4())
+      .setJti(randomUUID())
       .sign(this.jwtRefreshSecret);
   }
 
