@@ -33,9 +33,8 @@ export const HEALTH_STATUS = {
 export type HEALTH_STATUS = (typeof HEALTH_STATUS)[keyof typeof HEALTH_STATUS];
 
 export const STATUS = {
-  SUCCESS: 'success', // 2xx	Everything worked.
-  FAIL: 'fail', // 4xx	Bad request, Unauthorized, Validation Error, Not Found.
-  ERROR: 'error', // 5xx	Database timeout, Server crash, Out of memory.
+  WARN: 'warn',
+  ERROR: 'error',
 } as const;
 
 export type STATUS = (typeof STATUS)[keyof typeof STATUS];

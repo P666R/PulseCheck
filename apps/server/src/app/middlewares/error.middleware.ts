@@ -14,7 +14,6 @@ interface ErrorResponse {
   correlationId?: string;
   errorCode: string;
   message: string;
-  status: STATUS;
   timestamp: string;
   details?: AppErrorDetails | null;
   stack?: string;
@@ -49,31 +48,40 @@ export interface SerializedError {
 
 const { isDev } = envConfig;
 
+/**
+ * Global Error Handling Middleware.
+ * Processes all errors passed to next(err) and sends structured JSON responses.
+ */
 export const errorHandlerMiddleware = (
   err: unknown,
   req: Request,
   res: Response,
   next: NextFunction,
 ): void => {
+  // Set error on response for Pino-HTTP logger to pick up automatically
   res.err = err as Error;
 
+  // Delegate to default Express handler if headers are already sent
   if (res.headersSent) return next(err);
 
+  // Unify error data regardless of input type - App, native, unknown error
   const errorInfo = extractErrorInfo(err);
 
+  // Build the clean public response object
   const response: ErrorResponse = {
     requestId: req.id,
     correlationId: req.correlationId,
     errorCode: errorInfo.errorCode,
     message: errorInfo.message,
-    status: errorInfo.status,
     timestamp: errorInfo.timestamp,
   };
 
+  // Include details only for operational (trusted) errors
   if (errorInfo.isOperational && errorInfo.details) {
     response.details = errorInfo.details;
   }
 
+  // In development, include stack trace for debugging
   if (isDev && errorInfo.stack) {
     response.stack = errorInfo.stack;
     if (errorInfo.cause) {
@@ -81,9 +89,13 @@ export const errorHandlerMiddleware = (
     }
   }
 
+  // Send response
   res.status(errorInfo.statusCode).json(response);
 };
 
+/**
+ * 404 Handler for undefined routes.
+ */
 export const notFoundHandlerMiddleware = (
   req: Request,
   _res: Response,
@@ -98,19 +110,24 @@ export const notFoundHandlerMiddleware = (
   next(error);
 };
 
+/**
+ * Converts Error objects into plain JSON for logging/debugging.
+ * Preserves custom AppError properties throughout the cause chain.
+ */
 const extractErrorInfo = (err: unknown): ExtractedErrorInfo => {
   const stack = err instanceof Error ? err.stack || null : null;
   const now = new Date().toISOString();
   const cause =
     err instanceof Error && err.cause ? serializeCause(err.cause) : null;
 
+  // Handle ZodError (validation)
   if (err instanceof ZodError) {
-    const { summary, details } = formatZodError(err);
+    const { summary, details, type } = formatZodError(err);
     return {
-      name: 'ValidationError',
+      name: type,
       message: summary,
       statusCode: StatusCodes.UNPROCESSABLE_ENTITY,
-      status: STATUS.FAIL,
+      status: STATUS.WARN,
       errorCode: 'VALIDATION_ERROR',
       isOperational: true,
       details,
@@ -120,6 +137,7 @@ const extractErrorInfo = (err: unknown): ExtractedErrorInfo => {
     };
   }
 
+  // Handle AppError (trusted operational errors)
   if (err instanceof AppError) {
     return {
       name: err.name,
@@ -135,35 +153,28 @@ const extractErrorInfo = (err: unknown): ExtractedErrorInfo => {
     };
   }
 
-  if (err instanceof Error) {
-    return {
-      name: err.name,
-      message: err.message || 'An unexpected error occurred',
-      statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
-      status: STATUS.ERROR,
-      errorCode: 'INTERNAL_SERVER_ERROR',
-      isOperational: false,
-      details: null,
-      timestamp: now,
-      stack,
-      cause,
-    };
-  }
-
+  // Standard safe structural fallback mapping for generic unhandled system exceptions
+  const isNativeError = err instanceof Error;
   return {
-    name: 'UnknownError',
-    message: 'An unidentifiable error occurred',
+    name: isNativeError ? err.name : 'UnknownError',
+    message: isNativeError
+      ? err.message || 'An unexpected error occurred'
+      : 'An unidentifiable error occurred',
     statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
     status: STATUS.ERROR,
-    errorCode: 'UNKNOWN_ERROR',
+    errorCode: isNativeError ? 'INTERNAL_SERVER_ERROR' : 'UNKNOWN_ERROR',
     isOperational: false,
-    details: { raw: err } as AppErrorDetails,
+    details: isNativeError ? null : { raw: err },
     timestamp: now,
     stack,
     cause,
   };
 };
 
+/**
+ * Recursively converts Error objects into plain JSON for logging/debugging.
+ * Preserves custom AppError properties throughout the cause chain.
+ */
 const serializeCause = (cause: unknown): unknown => {
   if (!(cause instanceof Error)) return cause;
 
@@ -182,13 +193,17 @@ const serializeCause = (cause: unknown): unknown => {
     serialized.isOperational = cause.isOperational;
   }
 
-  if (cause.cause) {
+  // Recursively follow the error chain if a nested cause exists
+  if ('cause' in cause && cause.cause) {
     serialized.cause = serializeCause(cause.cause);
   }
 
   return serialized;
 };
 
+/**
+ * Format Zod validation errors.
+ */
 export const formatZodError = (error: ZodError) => {
   const summary = error.issues
     .map((iss) => `${iss.message} → ${iss.path.join('.')}`)
