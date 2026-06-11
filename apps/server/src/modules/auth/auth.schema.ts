@@ -1,6 +1,7 @@
 import validator from 'validator';
 import * as z from 'zod';
 
+import { envConfig } from '#src/config/env.config.js';
 import { passwordStrength } from '#src/lib/utils/password-strength.util.js';
 
 // Reusable base schemas
@@ -35,6 +36,8 @@ export const passwordConfirmSchema = z
   .string()
   .min(1, 'Password confirmation is required')
   .trim();
+
+export const jwtSchema = z.jwt({ alg: envConfig.JWT_ALGO });
 
 // Schemas
 export const registerSchema = z
@@ -75,6 +78,15 @@ export const updatePasswordSchema = z
   })
   .readonly();
 
+export const loginCookieSchema = z
+  // not strictObject to allow "extra" cookies we don't control
+  .object({
+    jwt: jwtSchema.optional(),
+  })
+  .optional()
+  .readonly();
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type UpdatePasswordInput = z.infer<typeof updatePasswordSchema>;
+export type LoginCookie = z.infer<typeof loginCookieSchema>;
