@@ -6,6 +6,12 @@ declare global {
       correlationId?: string;
       user?: Pick<User, 'id' | 'email'>;
       role?: UserRole;
+      validatedData: {
+        body?: Record<string, unknown>;
+        params?: Record<string, unknown>;
+        query?: Record<string, unknown>;
+        cookies?: Record<string, unknown>;
+      };
     }
   }
 }
