@@ -166,7 +166,7 @@ export class App implements Lifecycle {
 
   private configureHealthCheck(): void {
     const healthRoute = new HealthRoute();
-    this.app.use('/health', healthRoute.router);
+    this.app.use('/api/v1/health', healthRoute.router);
   }
 
   private configureLogging(): void {
