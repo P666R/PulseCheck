@@ -24,7 +24,8 @@ export class StoreController extends BaseController {
     this.getStoreRatings = this.getStoreRatings.bind(this);
   }
   async createStore(req: Request, res: Response) {
-    const { name, email, address, ownerId } = req.body as CreateStoreInput;
+    const { name, email, address, ownerId } = req.validatedData
+      .body as CreateStoreInput;
 
     const store = await this.storeService.createStore({
       name,
@@ -35,26 +36,30 @@ export class StoreController extends BaseController {
 
     req.log.info({ newStoreId: store.id }, 'Store created successfully');
 
-    return this.sendSuccessResponse(req, res, {
-      message: 'Store created successfully',
-      data: store,
-      status: StatusCodes.CREATED,
-    });
+    return this.sendSuccessResponse(
+      req,
+      res,
+      {
+        message: 'Store created successfully',
+        store,
+      },
+      StatusCodes.CREATED,
+    );
   }
 
   async getAllStores(req: Request, res: Response) {
-    const query = req.query as unknown as StoreQueryInput;
+    const query = req.validatedData.query as StoreQueryInput;
 
-    const result = await this.storeService.getAllStores(query);
+    const stores = await this.storeService.getAllStores(query);
 
     return this.sendSuccessResponse(req, res, {
       message: 'Stores fetched successfully',
-      data: result,
+      ...stores,
     });
   }
 
   async getStoreDetails(req: Request, res: Response) {
-    const { id } = req.params as StoreIdInput;
+    const { id } = req.validatedData.params as StoreIdInput;
 
     const store = await this.storeService.getStoreDetails(id);
 
@@ -62,49 +67,49 @@ export class StoreController extends BaseController {
 
     return this.sendSuccessResponse(req, res, {
       message: 'Store details fetched successfully',
-      data: store,
+      store,
     });
   }
 
   async getMyStores(req: Request, res: Response) {
     const { user, role } = req as AuthenticatedRequest;
 
-    const result = await this.storeService.getMyStores(user.id, role);
+    const stores = await this.storeService.getMyStores(user.id, role);
 
     req.log.info({ ownerId: user.id }, 'Stores fetched successfully');
 
     return this.sendSuccessResponse(req, res, {
       message: 'Stores fetched successfully',
-      data: result,
+      stores,
     });
   }
 
   async rateStore(req: Request, res: Response) {
     const { user } = req as AuthenticatedRequest;
-    const { id: storeId } = req.params as StoreIdInput;
-    const { rating } = req.body as CreateRatingInput;
+    const { id: storeId } = req.validatedData.params as StoreIdInput;
+    const { rating } = req.validatedData.body as CreateRatingInput;
 
-    const result = await this.storeService.rateStore(user.id, storeId, rating);
+    const store = await this.storeService.rateStore(user.id, storeId, rating);
 
     req.log.info({ storeId }, 'Store rated successfully');
 
     return this.sendSuccessResponse(req, res, {
       message: 'Store rated successfully',
-      data: result,
+      store,
     });
   }
 
   async getStoreRatings(req: Request, res: Response) {
     const { role } = req as AuthenticatedRequest;
-    const { id: storeId } = req.params as StoreIdInput;
+    const { id: storeId } = req.validatedData.params as StoreIdInput;
 
-    const result = await this.storeService.getStoreRatings(storeId, role);
+    const store = await this.storeService.getStoreRatings(storeId, role);
 
     req.log.info({ storeId }, 'Store ratings fetched successfully');
 
     return this.sendSuccessResponse(req, res, {
       message: 'Store ratings fetched successfully',
-      data: result,
+      store,
     });
   }
 }

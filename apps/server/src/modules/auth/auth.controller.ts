@@ -24,23 +24,30 @@ export class AuthController extends BaseController {
   }
 
   public async register(req: Request, res: Response) {
-    const { passwordConfirm: _, ...body } = req.body as RegisterInput;
+    const { passwordConfirm: _, ...body } = req.validatedData
+      .body as RegisterInput;
 
     const user = await this.authService.register(body);
 
     enrichRequestLogger(req, { userId: user.id, role: user.role });
     req.log.info('User registration successful');
 
-    return this.sendSuccessResponse(req, res, {
-      message: 'Registered successfully',
-      data: user,
-      status: StatusCodes.CREATED,
-    });
+    return this.sendSuccessResponse(
+      req,
+      res,
+      {
+        message: 'Registered successfully',
+        user,
+      },
+      StatusCodes.CREATED,
+    );
   }
 
   public async login(req: Request, res: Response) {
-    const { email, password } = req.body as LoginInput;
-    const { jwt: currentCookieToken } = req.cookies;
+    const { email, password } = req.validatedData.body as LoginInput;
+    const { jwt: currentCookieToken } = req.validatedData.cookies as {
+      jwt: string;
+    };
 
     const cookieOptions = this.getCookieOptions(24 * 60 * 60 * 1000);
 
@@ -58,7 +65,7 @@ export class AuthController extends BaseController {
 
       return this.sendSuccessResponse(req, res, {
         message: 'Logged in successfully',
-        data: user,
+        user,
         accessToken,
       });
     } catch (error) {
@@ -69,7 +76,9 @@ export class AuthController extends BaseController {
   }
 
   public async logout(req: Request, res: Response) {
-    const { jwt: currentCookieToken } = req.cookies;
+    const { jwt: currentCookieToken } = req.validatedData.cookies as {
+      jwt: string;
+    };
 
     const cookieOptions = this.getCookieOptions(0);
 
@@ -97,7 +106,7 @@ export class AuthController extends BaseController {
   }
 
   public async newAccessToken(req: Request, res: Response) {
-    const { jwt: refreshToken } = req.cookies;
+    const { jwt: refreshToken } = req.validatedData.cookies as { jwt: string };
 
     const cookieOptions = this.getCookieOptions(24 * 60 * 60 * 1000);
 
@@ -114,7 +123,7 @@ export class AuthController extends BaseController {
 
       return this.sendSuccessResponse(req, res, {
         message: 'Tokens rotated successfully',
-        data: user,
+        user,
         accessToken,
       });
     } catch (error) {
@@ -126,7 +135,7 @@ export class AuthController extends BaseController {
 
   public async updatePassword(req: Request, res: Response) {
     const { user } = req as AuthenticatedRequest;
-    const { password } = req.body as UpdatePasswordInput;
+    const { password } = req.validatedData.body as UpdatePasswordInput;
 
     const updatedUser = await this.authService.updatePassword({
       userId: user.id,
@@ -137,7 +146,7 @@ export class AuthController extends BaseController {
 
     return this.sendSuccessResponse(req, res, {
       message: 'Password updated successfully',
-      data: updatedUser,
+      user: updatedUser,
     });
   }
 }

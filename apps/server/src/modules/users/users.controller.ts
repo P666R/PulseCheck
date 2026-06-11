@@ -24,32 +24,32 @@ export class UserController extends BaseController {
 
   async getProfile(req: Request, res: Response) {
     const { user } = req as AuthenticatedRequest;
-    const result = await this.userService.getProfile(user.id);
+    const profile = await this.userService.getProfile(user.id);
 
     req.log.info('User profile fetched successfully');
 
     return this.sendSuccessResponse(req, res, {
       message: 'User profile fetched successfully',
-      data: result,
+      profile,
     });
   }
 
   async getAllUsers(req: Request, res: Response) {
-    const query = req.query as unknown as UserQueryInput;
+    const query = req.validatedData.query as UserQueryInput;
 
-    const result = await this.userService.getAllUsers(query);
+    const users = await this.userService.getAllUsers(query);
 
     req.log.info('Users fetched successfully');
 
     return this.sendSuccessResponse(req, res, {
       message: 'Users fetched successfully',
-      data: result,
+      ...users,
     });
   }
 
   async createUser(req: Request, res: Response) {
-    const { name, email, address, password, role } =
-      req.body as CreateUserInput;
+    const { name, email, address, password, role } = req.validatedData
+      .body as CreateUserInput;
     const user = await this.userService.createUser({
       name,
       email,
@@ -60,22 +60,26 @@ export class UserController extends BaseController {
 
     req.log.info({ newUserId: user.id }, 'User created successfully');
 
-    return this.sendSuccessResponse(req, res, {
-      message: 'User created successfully',
-      data: user,
-      status: StatusCodes.CREATED,
-    });
+    return this.sendSuccessResponse(
+      req,
+      res,
+      {
+        message: 'User created successfully',
+        user,
+      },
+      StatusCodes.CREATED,
+    );
   }
 
   async getUserDetails(req: Request, res: Response) {
-    const { id } = req.params as UserIdInput;
+    const { id } = req.validatedData.params as UserIdInput;
     const user = await this.userService.getUserDetails(id);
 
     req.log.info('User details fetched successfully');
 
     return this.sendSuccessResponse(req, res, {
       message: 'User details fetched successfully',
-      data: user,
+      user,
     });
   }
 
@@ -86,7 +90,7 @@ export class UserController extends BaseController {
 
     return this.sendSuccessResponse(req, res, {
       message: 'System stats fetched successfully',
-      data: stats,
+      stats,
     });
   }
 }
